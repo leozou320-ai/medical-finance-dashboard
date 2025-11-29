@@ -1,0 +1,1324 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>Leo的投融资看板 V5.1</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- ECharts CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+  <!-- XLSX 读 Excel（前端解析你的主库文件） -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"PingFang SC","Microsoft YaHei",sans-serif;
+      background: #050816;
+      color: #e5e7eb;
+      padding: 16px;
+    }
+    .dashboard { max-width: 1440px; margin: 0 auto; }
+
+    header {
+      margin-bottom: 10px;
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    header h1 {
+      font-size: 22px;
+      font-weight: 600;
+      color: #f9fafb;
+    }
+    header .meta { font-size: 13px; color: #9ca3af; }
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: rgba(59,130,246,0.18);
+      color: #bfdbfe;
+      font-size: 11px;
+      margin-left: 6px;
+    }
+
+    .filter-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+    .filter-group {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 12px;
+      color: #d1d5db;
+    }
+    .filter-group label { white-space: nowrap; }
+    .filter-group input[type="file"] {
+      font-size: 11px;
+      max-width: 220px;
+      color: #9ca3af;
+    }
+    select {
+      background: #0b1220;
+      border-radius: 999px;
+      border: 1px solid rgba(75,85,99,0.9);
+      padding: 2px 8px;
+      font-size: 12px;
+      color: #e5e7eb;
+      outline: none;
+    }
+    select:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    button {
+      background: rgba(59,130,246,0.9);
+      border: none;
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: 12px;
+      color: #f9fafb;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .kpi-row {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    @media (max-width: 1024px) {
+      .kpi-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 640px) {
+      .kpi-row { grid-template-columns: repeat(1, minmax(0, 1fr)); }
+    }
+    .kpi-card {
+      background: radial-gradient(circle at top left, rgba(59,130,246,0.25), transparent 55%);
+      border-radius: 14px;
+      padding: 12px 14px;
+      border: 1px solid rgba(148,163,184,0.35);
+    }
+    .kpi-label { font-size: 12px; color: #9ca3af; margin-bottom: 4px; }
+    .kpi-value { font-size: 22px; font-weight: 600; color: #f9fafb; margin-bottom: 4px; }
+    .kpi-sub { font-size: 11px; color: #9ca3af; }
+
+    .grid-2x2 {
+      display: grid;
+      grid-template-columns: 2fr 1.5fr;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    @media (max-width: 1024px) {
+      .grid-2x2 { grid-template-columns: 1fr; }
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: 2fr 2fr;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    @media (max-width: 1200px) {
+      .grid-3 { grid-template-columns: 1fr; }
+    }
+
+    .chart-card {
+      background: rgba(15,23,42,0.9);
+      border-radius: 14px;
+      padding: 10px;
+      border: 1px solid rgba(55,65,81,0.9);
+      min-height: 260px;
+      display: flex;
+      flex-direction: column;
+      margin-bottom: 12px;
+    }
+    .chart-title {
+      font-size: 13px;
+      color: #e5e7eb;
+      margin-bottom: 6px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .chart-subtitle { font-size: 11px; color: #6b7280; }
+    .chart-body { flex: 1; min-height: 220px; }
+
+    .table-card {
+      background: rgba(15,23,42,0.95);
+      border-radius: 14px;
+      border: 1px solid rgba(55,65,81,0.9);
+      padding: 8px 10px 10px;
+      margin-bottom: 10px;
+    }
+    .table-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+      font-size: 13px;
+      color: #e5e7eb;
+      margin-bottom: 4px;
+    }
+    .table-header span.secondary { font-size: 11px; color: #9ca3af; margin-left: 4px; }
+    .table-toggle-icon { font-size: 12px; color: #9ca3af; }
+
+    .table-body {
+      margin-top: 6px;
+      border-top: 1px solid rgba(55,65,81,0.9);
+      padding-top: 6px;
+      display: none;
+    }
+    .table-body.expanded { display: block; }
+
+    #investorTableWrapper,
+    #tableWrapper {
+      max-height: none;
+      overflow: visible;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11px;
+    }
+    thead {
+      position: sticky;
+      top: 0;
+      background: #020617;
+      z-index: 1;
+    }
+    th, td {
+      padding: 4px 6px;
+      border-bottom: 1px solid rgba(31,41,55,0.8);
+      text-align: left;
+      white-space: nowrap;
+    }
+    th { color: #9ca3af; font-weight: 500; }
+    td { color: #e5e7eb; }
+    td.text-muted { color: #9ca3af; }
+    td.text-link a { color: #60a5fa; text-decoration: none; }
+    td.text-link a:hover { text-decoration: underline; }
+
+    .investor-link {
+      color: #ffffff;
+      font-weight: 600;
+      text-decoration: none;
+    }
+    .investor-link:hover { text-decoration: underline; }
+
+    .company-link {
+      color: #ffffff;
+      font-weight: 600;
+      text-decoration: none;
+    }
+    .company-link:hover { text-decoration: underline; }
+
+    td.company-name-cell {
+      white-space: normal;
+      overflow-wrap: break-word;
+      word-wrap: break-word;
+    }
+
+    td.company-desc {
+      white-space: normal;
+      line-height: 1.35;
+      vertical-align: top;
+      overflow-wrap: break-word;
+      word-wrap: break-word;
+    }
+
+    td.investor-cell {
+      white-space: normal;
+      overflow-wrap: break-word;
+      word-wrap: break-word;
+    }
+
+    td.investor-projects {
+      white-space: normal;
+      overflow-wrap: break-word;
+      word-wrap: break-word;
+    }
+
+    table.event-table {
+      table-layout: fixed;
+    }
+
+    .footer-note {
+      font-size: 11px;
+      color: #6b7280;
+      margin-top: 8px;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+<div class="dashboard">
+  <header>
+    <div>
+      <h1>
+        Leo的投融资看板 V5.1
+        <span class="tag">数据版本：2025-11-29</span>
+      </h1>
+      <div class="meta">
+        覆盖中国医疗健康股权融资 / 并购事件，前端直接读取 Excel 主库，无需后端。
+      </div>
+    </div>
+    <div class="meta" id="statusText">
+      状态：请先上传主库 Excel（医疗投融资终端主库20251129V4.xlsx）
+    </div>
+  </header>
+
+  <!-- 筛选区 -->
+  <section class="filter-row">
+    <div class="filter-group">
+      <label for="fileInput">主库 Excel：</label>
+      <input type="file" id="fileInput" accept=".xlsx,.xls" />
+    </div>
+    <div class="filter-group">
+      <label for="filterRound">轮次：</label>
+      <select id="filterRound" disabled>
+        <option value="ALL">全部</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <label for="filterEventType">事件类型：</label>
+      <select id="filterEventType" disabled>
+        <option value="ALL">全部</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <label for="filterTherapy">一级赛道：</label>
+      <select id="filterTherapy" disabled>
+        <option value="ALL">全部</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <label for="filterProvince">地区：</label>
+      <select id="filterProvince" disabled>
+        <option value="ALL">全部</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <label for="filterMonth">月份：</label>
+      <select id="filterMonth" disabled>
+        <option value="ALL">全部</option>
+      </select>
+    </div>
+    <button id="resetFilters" disabled>重置筛选</button>
+    <button id="exportExcel" disabled>导出当前筛选结果</button>
+  </section>
+
+  <!-- KPI -->
+  <section class="kpi-row">
+    <div class="kpi-card">
+      <div class="kpi-label">当前筛选：公司数</div>
+      <div class="kpi-value" id="kpiCompanies">-</div>
+      <div class="kpi-sub">按 company_id 去重</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">当前筛选：投资机构数</div>
+      <div class="kpi-value" id="kpiInvestors">-</div>
+      <div class="kpi-sub">按“主投机构 / 投资方”拆分去重</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">当前筛选：累计披露金额（本币）</div>
+      <div class="kpi-value" id="kpiTotalAmount">-</div>
+      <div class="kpi-sub">仅用于趋势观察，非审计数据</div>
+    </div>
+  </section>
+
+  <!-- 趋势 & 区域 -->
+  <section class="grid-2x2">
+    <div class="chart-card">
+      <div class="chart-title">
+        <span>每周投融资事件趋势</span>
+        <span class="chart-subtitle">按公告周（周一起算）统计，单位：起</span>
+      </div>
+      <div id="chart_timeline" class="chart-body"></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">
+        <span>事件区域分布（省市）</span>
+        <span class="chart-subtitle">按公司注册省份统计，Top 10</span>
+      </div>
+      <div id="chart_province" class="chart-body"></div>
+    </div>
+  </section>
+
+  <!-- 轮次 / 一级赛道 -->
+  <section class="grid-3">
+    <div class="chart-card">
+      <div class="chart-title">
+        <span>轮次结构分布（标准化）</span>
+        <span class="chart-subtitle">天使→A→B→C→D→E→战略→IPO→并购/收购</span>
+      </div>
+      <div id="chart_round" class="chart-body"></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">
+        <span>一级赛道交易分布</span>
+        <span class="chart-subtitle">sector_main 维度，Top 10</span>
+      </div>
+      <div id="chart_therapy" class="chart-body"></div>
+    </div>
+  </section>
+
+  <!-- 新增：机构出手结构堆积柱状图（Top 30） -->
+  <section class="chart-card">
+    <div class="chart-title">
+      <span>机构出手结构（Top 30）</span>
+      <span class="chart-subtitle">按出手次数排序，IVD / 医疗服务 / 创新器械 / 创新药 堆积</span>
+    </div>
+    <div id="chart_investor_stack" class="chart-body"></div>
+  </section>
+
+  <!-- 投资机构列表 -->
+  <section class="table-card">
+    <div class="table-header">
+      <div>
+        投资机构列表（按出手次数排序，点击机构可 Drill-down）
+        <span class="secondary" id="investorCountLabel">(当前筛选：0 家)</span>
+      </div>
+    </div>
+    <div class="table-body expanded" id="investorTableWrapper">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>投资机构</th>
+            <th>出手次数</th>
+            <th>出手项目简称</th>
+            <th>最近投资日期</th>
+          </tr>
+        </thead>
+        <tbody id="investorTableBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 事件明细 -->
+  <section class="table-card">
+    <div class="table-header" id="tableToggle">
+      <div>
+        事件明细（点击公司名称可 Drill-down）
+        <span class="secondary" id="tableCountLabel">(当前筛选：0 起)</span>
+      </div>
+      <div class="table-toggle-icon" id="tableToggleIcon">展开 ▼</div>
+    </div>
+    <div class="table-body" id="tableWrapper">
+      <table class="event-table">
+        <colgroup>
+          <col style="width:7%">
+          <col style="width:12%">
+          <col style="width:43%">
+          <col style="width:5%">
+          <col style="width:8%">
+          <col style="width:6%">
+          <col style="width:4%">
+          <col style="width:6%">
+          <col style="width:4%">
+          <col style="width:5%">
+        </colgroup>
+        <thead>
+          <tr>
+            <th>公告日</th>
+            <th>公司简称</th>
+            <th>公司简介</th>
+            <th>省份</th>
+            <th>一级领域</th>
+            <th>事件类型</th>
+            <th>轮次</th>
+            <th>金额（本币）</th>
+            <th>币种</th>
+            <th>主投机构 / 交易对手</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="footer-note">
+    使用说明：<br/>
+    1）前端读取 Excel 主库（Sheet：Company_公司_数据 / FinancingEvent_事件_数据），本地运行不上传到服务器。<br/>
+    2）筛选支持：轮次 / 事件类型 / 一级赛道 / 地区 / 月份 五个维度 + 机构 / 公司 Drill-down。<br/>
+    3）可一键导出当前筛选结果为 Excel，用于对外发送或进一步分析。
+  </div>
+</div>
+
+<script>
+  let RAW_EVENTS = [];
+  let FILTERS = {
+    round: 'ALL',
+    eventType: 'ALL',
+    therapy: 'ALL',
+    province: 'ALL',
+    month: 'ALL',
+    investorName: null,
+    companyId: null,
+    companyName: null
+  };
+  let tableExpanded = false;
+
+  const statusTextEl = document.getElementById('statusText');
+  const kpiCompaniesEl = document.getElementById('kpiCompanies');
+  const kpiInvestorsEl = document.getElementById('kpiInvestors');
+  const kpiTotalAmountEl = document.getElementById('kpiTotalAmount');
+
+  const filterRoundEl = document.getElementById('filterRound');
+  const filterEventTypeEl = document.getElementById('filterEventType');
+  const filterTherapyEl = document.getElementById('filterTherapy');
+  const filterProvinceEl = document.getElementById('filterProvince');
+  const filterMonthEl = document.getElementById('filterMonth');
+  const resetFiltersBtn = document.getElementById('resetFilters');
+  const exportExcelBtn = document.getElementById('exportExcel');
+
+  const investorCountLabelEl = document.getElementById('investorCountLabel');
+  const investorTableBodyEl = document.getElementById('investorTableBody');
+
+  const tableCountLabelEl = document.getElementById('tableCountLabel');
+  const tableWrapperEl = document.getElementById('tableWrapper');
+  const tableBodyEl = document.getElementById('tableBody');
+  const tableToggleEl = document.getElementById('tableToggle');
+  const tableToggleIconEl = document.getElementById('tableToggleIcon');
+
+  const timelineChart = echarts.init(document.getElementById('chart_timeline'));
+  const provinceChart = echarts.init(document.getElementById('chart_province'));
+  const roundChart = echarts.init(document.getElementById('chart_round'));
+  const therapyChart = echarts.init(document.getElementById('chart_therapy'));
+  const investorStackChart = echarts.init(document.getElementById('chart_investor_stack'));
+
+  const axisLabelColor = '#9ca3af';
+
+  function emptyChartOption() {
+    return {
+      title: { show: false },
+      xAxis: { type: 'category', data: [], axisLabel: { color: axisLabelColor } },
+      yAxis: { type: 'value', axisLabel: { color: axisLabelColor } },
+      series: []
+    };
+  }
+  timelineChart.setOption(emptyChartOption());
+  provinceChart.setOption(emptyChartOption());
+  roundChart.setOption(emptyChartOption());
+  therapyChart.setOption(emptyChartOption());
+  investorStackChart.setOption(emptyChartOption());
+
+  window.addEventListener('resize', () => {
+    timelineChart.resize();
+    provinceChart.resize();
+    roundChart.resize();
+    therapyChart.resize();
+    investorStackChart.resize();
+  });
+
+  function formatNumber(num) {
+    if (num === null || num === undefined) return '-';
+    return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  }
+  function formatRmbShort(val) {
+    if (!val || val <= 0) return '-';
+    if (val >= 1e8) return (val / 1e8).toFixed(1) + ' 亿';
+    if (val >= 1e4) return (val / 1e4).toFixed(1) + ' 万';
+    return val.toFixed(0);
+  }
+  function toNumber(v) {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  }
+  function normalizeDate(d) {
+    if (!d) return null;
+    if (Object.prototype.toString.call(d) === '[object Date]') {
+      return d.toISOString().slice(0, 10);
+    }
+    if (typeof d === 'number' && XLSX.SSF) {
+      const o = XLSX.SSF.parse_date_code(d);
+      if (!o) return null;
+      const y = String(o.y).padStart(4, '0');
+      const m = String(o.m).padStart(2, '0');
+      const day = String(o.d).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    }
+    if (typeof d === 'string') {
+      const m = d.match(/\d{4}[-/]\d{1,2}[-/]\d{1,2}/);
+      if (m) {
+        const parts = m[0].replace(/\//g, '-').split('-');
+        const y = parts[0].padStart(4, '0');
+        const mo = parts[1].padStart(2, '0');
+        const da = parts[2].padStart(2, '0');
+        return `${y}-${mo}-${da}`;
+      }
+      return d.slice(0, 10);
+    }
+    return null;
+  }
+  function uniq(arr) {
+    return Array.from(new Set(arr.filter(Boolean)));
+  }
+  function sortByLabel(a, b) {
+    if (a === b) return 0;
+    return a > b ? 1 : -1;
+  }
+
+  function getWeekKey(dateStr) {
+    if (!dateStr) return null;
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return null;
+    const day = d.getDay();
+    const diff = (day === 0 ? -6 : 1 - day);
+    d.setDate(d.getDate() + diff);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const da = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${da}`;
+  }
+
+  function getMonthKey(dateStr) {
+    if (!dateStr) return null;
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return null;
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    return `${y}-${m}`;
+  }
+
+  function normalizeRoundForChart(roundRaw) {
+    if (!roundRaw) return '其他';
+    const s = String(roundRaw).toUpperCase();
+
+    if (s.includes('天使') || s.includes('ANGEL') || s.includes('种子')) return '天使轮';
+    if (s.includes('PRE-A') || s.includes('A轮') || s.includes('A+') || /\bA\b/.test(s)) return 'A轮';
+    if (s.includes('PRE-B') || s.includes('B轮') || s.includes('B+') || /\bB\b/.test(s)) return 'B轮';
+    if (s.includes('PRE-C') || s.includes('C轮') || s.includes('C+') || /\bC\b/.test(s)) return 'C轮';
+    if (s.includes('PRE-D') || s.includes('D轮') || s.includes('D+') || /\bD\b/.test(s)) return 'D轮';
+    if (s.includes('PRE-E') || s.includes('E轮') || s.includes('E+') || /\bE\b/.test(s)) return 'E轮';
+    if (s.includes('战略') || s.includes('STRATEGIC')) return '战略融资';
+    if (s.includes('IPO') || s.includes('上市')) return 'IPO';
+    if (s.includes('拟收购') || s.includes('并购') || s.includes('收购') || s.includes('M&A')) return '并购/收购';
+    return '其他';
+  }
+
+  function normalizeEventType(raw) {
+    if (!raw) return '其他';
+    const s = String(raw).toUpperCase();
+    if (s.includes('并购') || s.includes('收购') || s.includes('M&A')) return '并购/收购';
+    if (s.includes('IPO') || s.includes('上市')) return 'IPO';
+    if (s.includes('股权') || s.includes('融资') || s.includes('增资') || s.includes('定增') || s.includes('投资') || s.includes('轮')) {
+      return '股权融资';
+    }
+    return '其他';
+  }
+
+  function cleanInvestorName(name) {
+    if (!name) return '';
+    let n = name.trim();
+    n = n.replace(/^投资方[:：]\s*/i, '');
+    return n.trim();
+  }
+  function getInvestorNames(raw) {
+    if (!raw) return [];
+    return raw.toString()
+      .split(/[,，、;；]/)
+      .map(s => cleanInvestorName(s))
+      .filter(Boolean);
+  }
+
+  function applyFilters() {
+    return RAW_EVENTS.filter(ev => {
+      if (FILTERS.round !== 'ALL' &&
+          normalizeRoundForChart(ev.round || '其他') !== FILTERS.round) return false;
+      if (FILTERS.eventType !== 'ALL' &&
+          ev.eventTypeNorm !== FILTERS.eventType) return false;
+      if (FILTERS.therapy !== 'ALL' && ev.sectorMain !== FILTERS.therapy) return false;
+      if (FILTERS.province !== 'ALL' && ev.province !== FILTERS.province) return false;
+      if (FILTERS.month !== 'ALL' && ev.announceMonth !== FILTERS.month) return false;
+
+      if (FILTERS.investorName) {
+        const names = getInvestorNames(ev.mainInvestors);
+        if (!names.includes(FILTERS.investorName)) return false;
+      }
+
+      if (FILTERS.companyId || FILTERS.companyName) {
+        if (FILTERS.companyId && ev.companyId !== FILTERS.companyId) return false;
+        if (!FILTERS.companyId && FILTERS.companyName && ev.companyName !== FILTERS.companyName) return false;
+        return true;
+      }
+
+      return true;
+    });
+  }
+
+  function renderKpis(events) {
+    if (!events || !events.length) {
+      kpiCompaniesEl.innerText = '-';
+      kpiInvestorsEl.innerText = '-';
+      kpiTotalAmountEl.innerText = '-';
+      return;
+    }
+
+    const companySet = new Set(events.map(ev => ev.companyId).filter(Boolean));
+    const investorSet = new Set();
+    events.forEach(ev => {
+      getInvestorNames(ev.mainInvestors).forEach(name => investorSet.add(name));
+    });
+
+    const eventsWithAmt = events.filter(ev => ev.amountLocal && ev.amountLocal > 0);
+    const totalAmt = eventsWithAmt.reduce((sum, ev) => sum + (ev.amountLocal || 0), 0);
+
+    kpiCompaniesEl.innerText = formatNumber(companySet.size);
+    kpiInvestorsEl.innerText = formatNumber(investorSet.size);
+    kpiTotalAmountEl.innerText = '≈ ' + formatRmbShort(totalAmt);
+  }
+
+  function renderCharts(events) {
+    const weekCounts = {};
+    events.forEach(ev => {
+      const wk = getWeekKey(ev.announceDate);
+      if (!wk) return;
+      weekCounts[wk] = (weekCounts[wk] || 0) + 1;
+    });
+    const weekKeys = Object.keys(weekCounts).sort();
+    const weekValues = weekKeys.map(k => weekCounts[k]);
+
+    timelineChart.setOption({
+      tooltip: {
+        trigger: 'axis',
+        formatter: params => {
+          if (!params || !params.length) return '';
+          const p = params[0];
+          return `${p.axisValue}<br/>事件数：${p.data}`;
+        }
+      },
+      grid: { left: 40, right: 16, top: 30, bottom: 40 },
+      xAxis: {
+        type: 'category',
+        data: weekKeys,
+        axisLabel: { color: axisLabelColor, rotate: 45, fontSize: 10 },
+        axisLine: { lineStyle: { color: '#4b5563' } }
+      },
+      yAxis: {
+        type: 'value',
+        axisLabel: { color: axisLabelColor },
+        splitLine: { lineStyle: { color: 'rgba(75,85,99,0.4)' } }
+      },
+      series: [{
+        name: '事件数',
+        type: 'line',
+        smooth: true,
+        symbol: 'circle',
+        symbolSize: 6,
+        areaStyle: { opacity: 0.25 },
+        data: weekValues,
+        label: {
+          show: true,
+          position: 'top',
+          fontSize: 10,
+          color: '#e5e7eb'
+        }
+      }]
+    }, true);
+
+    const provCounts = {};
+    events.forEach(ev => {
+      const p = ev.province || '未知';
+      provCounts[p] = (provCounts[p] || 0) + 1;
+    });
+    const provArr = Object.entries(provCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10);
+    const provLabels = provArr.map(x => x[0]);
+    const provValues = provArr.map(x => x[1]);
+
+    provinceChart.setOption({
+      tooltip: { trigger: 'axis' },
+      grid: { left: 40, right: 16, top: 30, bottom: 40 },
+      xAxis: {
+        type: 'category',
+        data: provLabels,
+        axisLabel: { color: axisLabelColor, interval: 0, rotate: 30, fontSize: 10 },
+        axisLine: { lineStyle: { color: '#4b5563' } }
+      },
+      yAxis: {
+        type: 'value',
+        axisLabel: { color: axisLabelColor },
+        splitLine: { lineStyle: { color: 'rgba(75,85,99,0.4)' } }
+      },
+      series: [{
+        name: '事件数',
+        type: 'bar',
+        data: provValues,
+        barMaxWidth: 32,
+        label: {
+          show: true,
+          position: 'top',
+          fontSize: 10,
+          color: '#e5e7eb'
+        }
+      }]
+    }, true);
+
+    const roundCounts = {};
+    events.forEach(ev => {
+      const norm = normalizeRoundForChart(ev.round || '其他');
+      roundCounts[norm] = (roundCounts[norm] || 0) + 1;
+    });
+
+    const roundOrder = ['天使轮','A轮','B轮','C轮','D轮','E轮','战略融资','IPO','并购/收购'];
+    const roundLabels = [];
+    const roundValues = [];
+    roundOrder.forEach(label => {
+      const v = roundCounts[label] || 0;
+      if (v > 0) {
+        roundLabels.push(label);
+        roundValues.push(v);
+      }
+    });
+
+    roundChart.setOption({
+      tooltip: { trigger: 'axis' },
+      grid: { left: 40, right: 16, top: 30, bottom: 60 },
+      xAxis: {
+        type: 'category',
+        data: roundLabels,
+        axisLabel: { color: axisLabelColor, interval: 0, rotate: 0, fontSize: 11 },
+        axisLine: { lineStyle: { color: '#4b5563' } }
+      },
+      yAxis: {
+        type: 'value',
+        axisLabel: { color: axisLabelColor },
+        splitLine: { lineStyle: { color: 'rgba(75,85,99,0.4)' } }
+      },
+      series: [{
+        name: '事件数',
+        type: 'bar',
+        data: roundValues,
+        barMaxWidth: 32,
+        label: {
+          show: true,
+          position: 'top',
+          fontSize: 10,
+          color: '#e5e7eb'
+        }
+      }]
+    }, true);
+
+    const sectorCounts = {};
+    events.forEach(ev => {
+      const s = ev.sectorMain || '未知';
+      sectorCounts[s] = (sectorCounts[s] || 0) + 1;
+    });
+    const sectorArr = Object.entries(sectorCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10);
+    const sectorLabels = sectorArr.map(x => x[0]);
+    const sectorValues = sectorArr.map(x => x[1]);
+
+    therapyChart.setOption({
+      tooltip: { trigger: 'axis' },
+      grid: { left: 110, right: 40, top: 20, bottom: 30 },
+      xAxis: {
+        type: 'value',
+        axisLabel: { color: axisLabelColor },
+        splitLine: { lineStyle: { color: 'rgba(75,85,99,0.4)' } }
+      },
+      yAxis: {
+        type: 'category',
+        data: sectorLabels,
+        axisLabel: { color: axisLabelColor, fontSize: 11 },
+        axisLine: { lineStyle: { color: '#4b5563' } }
+      },
+      series: [{
+        name: '事件数',
+        type: 'bar',
+        data: sectorValues,
+        barMaxWidth: 16,
+        label: {
+          show: true,
+          position: 'right',
+          fontSize: 10,
+          color: '#e5e7eb'
+        }
+      }]
+    }, true);
+  }
+
+  // 新增：机构堆积柱状图
+  function renderInvestorStackChart(investorsStats) {
+    if (!investorsStats || !investorsStats.length) {
+      investorStackChart.setOption(emptyChartOption(), true);
+      return;
+    }
+
+    const top = investorsStats.slice(0, 30);
+    const names = top.map(it => it.name);
+
+    const dataIVD = top.map(it => (it.bySector && it.bySector['IVD']) || 0);
+    const dataService = top.map(it => (it.bySector && it.bySector['医疗服务']) || 0);
+    const dataDevice = top.map(it => (it.bySector && it.bySector['创新器械']) || 0);
+    const dataDrug = top.map(it => (it.bySector && it.bySector['创新药']) || 0);
+
+    const totals = names.map((_, i) =>
+      dataIVD[i] + dataService[i] + dataDevice[i] + dataDrug[i]
+    );
+
+    investorStackChart.setOption({
+      tooltip: {
+        trigger: 'axis',
+        axisPointer: { type: 'shadow' }
+      },
+      legend: {
+        data: ['IVD','医疗服务','创新器械','创新药'],
+        textStyle: { color: axisLabelColor, fontSize: 10 }
+      },
+      grid: { left: 60, right: 20, top: 40, bottom: 80 },
+      xAxis: {
+        type: 'category',
+        data: names,
+        axisLabel: {
+          color: axisLabelColor,
+          interval: 0,
+          rotate: 45,
+          fontSize: 9
+        },
+        axisLine: { lineStyle: { color: '#4b5563' } }
+      },
+      yAxis: {
+        type: 'value',
+        axisLabel: { color: axisLabelColor },
+        splitLine: { lineStyle: { color: 'rgba(75,85,99,0.4)' } }
+      },
+      series: [
+        {
+          name: 'IVD',
+          type: 'bar',
+          stack: 'total',
+          barMaxWidth: 28,
+          data: dataIVD
+        },
+        {
+          name: '医疗服务',
+          type: 'bar',
+          stack: 'total',
+          data: dataService
+        },
+        {
+          name: '创新器械',
+          type: 'bar',
+          stack: 'total',
+          data: dataDevice
+        },
+        {
+          name: '创新药',
+          type: 'bar',
+          stack: 'total',
+          data: dataDrug,
+          label: {
+            show: true,
+            position: 'top',
+            fontSize: 10,
+            color: '#e5e7eb',
+            formatter: function (params) {
+              return totals[params.dataIndex] || '';
+            }
+          }
+        }
+      ]
+    }, true);
+  }
+
+  function renderInvestorList(events) {
+    const stats = {};
+    events.forEach(ev => {
+      const names = getInvestorNames(ev.mainInvestors);
+      const date = ev.announceDate || '';
+      const proj = ev.companyName || '';
+      const sector = ev.sectorMain || '';
+      names.forEach(name => {
+        if (!stats[name]) {
+          stats[name] = {
+            name,
+            count: 0,
+            lastDate: null,
+            projects: new Set(),
+            bySector: {
+              'IVD': 0,
+              '医疗服务': 0,
+              '创新器械': 0,
+              '创新药': 0
+            }
+          };
+        }
+        stats[name].count += 1;
+        if (date && (!stats[name].lastDate || date > stats[name].lastDate)) {
+          stats[name].lastDate = date;
+        }
+        if (proj) {
+          stats[name].projects.add(proj);
+        }
+        if (sector === 'IVD' ||
+            sector === '医疗服务' ||
+            sector === '创新器械' ||
+            sector === '创新药') {
+          stats[name].bySector[sector] += 1;
+        }
+      });
+    });
+
+    const arr = Object.values(stats).sort((a, b) => {
+      if (b.count !== a.count) return b.count - a.count;
+      if (a.lastDate === b.lastDate) return a.name > b.name ? 1 : -1;
+      return (b.lastDate || '') > (a.lastDate || '') ? 1 : -1;
+    });
+
+    const filtered = arr.filter(it =>
+      it.count >= 2 &&
+      it.name !== '公开发行' &&
+      it.name !== '未披露'
+    );
+
+    investorCountLabelEl.textContent = `(当前筛选：${filtered.length} 家，≥2 次出手)`;
+
+    // 同时更新堆积柱状图（Top30）
+    renderInvestorStackChart(filtered);
+
+    if (!filtered.length) {
+      investorTableBodyEl.innerHTML = '<tr><td colspan="5" class="text-muted">当前筛选条件下无达到 2 次以上出手的机构</td></tr>';
+      return;
+    }
+
+    const topN = filtered.slice(0, 1000);
+    const rows = topN.map((it, idx) => {
+      const projects = Array.from(it.projects || []).join('、') || '-';
+      return `
+        <tr>
+          <td>${idx + 1}</td>
+          <td>
+            <a href="#" class="investor-link" data-investor="${it.name}">${it.name}</a>
+          </td>
+          <td>${it.count}</td>
+          <td class="investor-projects">${projects}</td>
+          <td>${it.lastDate || '-'}</td>
+        </tr>
+      `;
+    }).join('');
+    investorTableBodyEl.innerHTML = rows;
+
+    document.querySelectorAll('.investor-link').forEach(el => {
+      el.addEventListener('click', e => {
+        e.preventDefault();
+        const name = el.getAttribute('data-investor');
+        FILTERS.investorName = name;
+        updateAllViews();
+      });
+    });
+  }
+
+  function bindCompanyLinks() {
+    document.querySelectorAll('.company-link').forEach(el => {
+      el.addEventListener('click', e => {
+        e.preventDefault();
+        const cid = el.getAttribute('data-company-id');
+        const cname = el.getAttribute('data-company-name');
+        FILTERS.companyId = cid || null;
+        FILTERS.companyName = cname || null;
+        updateAllViews();
+      });
+    });
+  }
+
+  function renderTable(events) {
+    tableCountLabelEl.innerText = `(当前筛选：${events.length} 起)`;
+
+    if (!events.length) {
+      tableBodyEl.innerHTML = '<tr><td colspan="10" class="text-muted">当前筛选条件下无事件</td></tr>';
+      return;
+    }
+    const sorted = events.slice().sort((a, b) => {
+      if (!a.announceDate && !b.announceDate) return 0;
+      if (!a.announceDate) return 1;
+      if (!b.announceDate) return -1;
+      return a.announceDate > b.announceDate ? -1 : 1;
+    });
+
+    const rows = sorted.map(ev => {
+      const date = ev.announceDate || '-';
+      const name = ev.companyName || '-';
+      const desc = ev.companyDesc || '-';
+      const nameCell = ev.companyName
+        ? `<a href="#" class="company-link" data-company-id="${ev.companyId || ''}" data-company-name="${name}">${name}</a>`
+        : '-';
+      const prov = ev.province || '-';
+      const therapy = ev.therapyArea1 || '-';
+      const type = ev.eventTypeNorm || ev.eventType || '-';
+      const round = ev.round || '-';
+      const amt = ev.amountLocal && ev.amountLocal > 0 ? '≈ ' + formatRmbShort(ev.amountLocal) : '-';
+      const curr = ev.currency || '-';
+      const investors = ev.mainInvestors || '-';
+
+      return `
+        <tr>
+          <td>${date}</td>
+          <td class="company-name-cell">${nameCell}</td>
+          <td class="company-desc">${desc}</td>
+          <td>${prov}</td>
+          <td>${therapy}</td>
+          <td>${type}</td>
+          <td>${round}</td>
+          <td>${amt}</td>
+          <td>${curr}</td>
+          <td class="text-muted investor-cell">${investors}</td>
+        </tr>
+      `;
+    }).join('');
+    tableBodyEl.innerHTML = rows;
+
+    bindCompanyLinks();
+  }
+
+  function updateStatusBar() {
+    if (!RAW_EVENTS.length) {
+      statusTextEl.textContent = '状态：尚未载入数据';
+      return;
+    }
+    let text = `状态：已载入 ${RAW_EVENTS.length} 条事件记录，支持筛选联动。`;
+    const drill = [];
+    if (FILTERS.investorName) drill.push(`机构=${FILTERS.investorName}`);
+    if (FILTERS.companyName) drill.push(`公司=${FILTERS.companyName}`);
+    if (drill.length) {
+      text += ' 当前 Drill-down：' + drill.join('，');
+    }
+    statusTextEl.textContent = text;
+  }
+
+  function updateAllViews() {
+    const filtered = applyFilters();
+    renderKpis(filtered);
+    renderCharts(filtered);
+    renderInvestorList(filtered);
+    renderTable(filtered);
+    updateStatusBar();
+  }
+
+  function initFilterOptions() {
+    const roundSet = new Set();
+    RAW_EVENTS.forEach(ev => {
+      roundSet.add(normalizeRoundForChart(ev.round || '其他'));
+    });
+    const roundOrder = ['天使轮','A轮','B轮','C轮','D轮','E轮','战略融资','IPO','并购/收购'];
+    const rounds = roundOrder.filter(r => roundSet.has(r));
+
+    const typeSet = new Set(RAW_EVENTS.map(ev => ev.eventTypeNorm));
+    const eventTypeOrder = ['股权融资','并购/收购','IPO','其他'];
+    const eventTypes = eventTypeOrder.filter(t => typeSet.has(t));
+
+    const sectors = uniq(RAW_EVENTS.map(ev => ev.sectorMain)).sort(sortByLabel);
+    const provinces = uniq(RAW_EVENTS.map(ev => ev.province)).sort(sortByLabel);
+    const months = uniq(RAW_EVENTS.map(ev => ev.announceMonth)).sort();
+
+    function fillSelect(selectEl, items, placeholder) {
+      selectEl.innerHTML = '';
+      const optAll = document.createElement('option');
+      optAll.value = 'ALL';
+      optAll.textContent = placeholder;
+      selectEl.appendChild(optAll);
+      items.forEach(v => {
+        const o = document.createElement('option');
+        o.value = v;
+        o.textContent = v;
+        selectEl.appendChild(o);
+      });
+      selectEl.disabled = false;
+    }
+
+    fillSelect(filterRoundEl, rounds, '全部');
+    fillSelect(filterEventTypeEl, eventTypes, '全部');
+    fillSelect(filterTherapyEl, sectors, '全部');
+    fillSelect(filterProvinceEl, provinces, '全部');
+    fillSelect(filterMonthEl, months, '全部');
+
+    resetFiltersBtn.disabled = false;
+    exportExcelBtn.disabled = false;
+  }
+
+  document.getElementById('fileInput').addEventListener('change', function (e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    statusTextEl.textContent = '状态：正在读取 Excel，请稍候…';
+
+    const reader = new FileReader();
+    reader.onload = function (evt) {
+      try {
+        const data = new Uint8Array(evt.target.result);
+        const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+
+        const companySheet = workbook.Sheets['Company_公司_数据'];
+        const eventSheet = workbook.Sheets['FinancingEvent_事件_数据'];
+
+        if (!companySheet || !eventSheet) {
+          statusTextEl.textContent = '状态：未找到 Company_公司_数据 或 FinancingEvent_事件_数据 Sheet，请检查主库格式。';
+          return;
+        }
+
+        const companies = XLSX.utils.sheet_to_json(companySheet, { defval: null, raw: false });
+        const events = XLSX.utils.sheet_to_json(eventSheet, { defval: null, raw: false });
+
+        const companyMap = {};
+        companies.forEach(c => {
+          if (!c.company_id) return;
+          companyMap[c.company_id] = c;
+        });
+
+        RAW_EVENTS = events.map(ev => {
+          const comp = companyMap[ev.company_id] || {};
+          const announceDate = normalizeDate(ev.announce_date);
+          const announceMonth = getMonthKey(announceDate);
+          const eventTypeRaw = ev.event_type || null;
+          const eventTypeNorm = normalizeEventType(eventTypeRaw);
+
+          return {
+            eventId: ev.event_id || null,
+            companyId: ev.company_id || null,
+            companyName: comp.name_short || ev.name_short || comp.name_cn || null,
+            companyDesc: comp.description_short || null,
+            province: comp.province || null,
+            city: comp.city || null,
+            therapyArea1: comp.therapy_area_lvl1 || null,
+            therapyArea2: comp.therapy_area_lvl2 || null,
+            sectorMain: comp.sector_main || null,
+            eventType: eventTypeRaw,
+            eventTypeNorm,
+            round: ev.round || null,
+            roundNorm: ev.round_norm || null,
+            announceDate,
+            announceMonth,
+            closeDate: normalizeDate(ev.close_date),
+            amountLocal: toNumber(ev.amount_local),
+            currency: ev.currency || null,
+            amountUsd: toNumber(ev.amount_usd),
+            amountDisclosedFlag: ev.amount_disclosed_flag != null ? Boolean(ev.amount_disclosed_flag) : null,
+            valuationPre: toNumber(ev.valuation_pre),
+            valuationPost: toNumber(ev.valuation_post),
+            stakePct: toNumber(ev.stake_acquired_pct),
+            mainInvestors: ev.main_investors_text || null,
+            sourceName: ev.source_name || null,
+            sourceUrl: ev.source_url || null,
+            isEstimated: ev.is_estimated != null ? Boolean(ev.is_estimated) : null,
+            remark: ev.remark || null
+          };
+        }).filter(ev => ev.eventId);
+
+        FILTERS = {
+          round: 'ALL',
+          eventType: 'ALL',
+          therapy: 'ALL',
+          province: 'ALL',
+          month: 'ALL',
+          investorName: null,
+          companyId: null,
+          companyName: null
+        };
+
+        initFilterOptions();
+        updateAllViews();
+      } catch (err) {
+        console.error(err);
+        statusTextEl.textContent = '状态：解析 Excel 失败，请检查文件是否为主库标准格式。';
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  });
+
+  filterRoundEl.addEventListener('change', function () {
+    FILTERS.round = this.value;
+    updateAllViews();
+  });
+  filterEventTypeEl.addEventListener('change', function () {
+    FILTERS.eventType = this.value;
+    updateAllViews();
+  });
+  filterTherapyEl.addEventListener('change', function () {
+    FILTERS.therapy = this.value;
+    updateAllViews();
+  });
+  filterProvinceEl.addEventListener('change', function () {
+    FILTERS.province = this.value;
+    updateAllViews();
+  });
+  filterMonthEl.addEventListener('change', function () {
+    FILTERS.month = this.value;
+    updateAllViews();
+  });
+
+  resetFiltersBtn.addEventListener('click', function () {
+    FILTERS = {
+      round: 'ALL',
+      eventType: 'ALL',
+      therapy: 'ALL',
+      province: 'ALL',
+      month: 'ALL',
+      investorName: null,
+      companyId: null,
+      companyName: null
+    };
+    filterRoundEl.value = 'ALL';
+    filterEventTypeEl.value = 'ALL';
+    filterTherapyEl.value = 'ALL';
+    filterProvinceEl.value = 'ALL';
+    filterMonthEl.value = 'ALL';
+    updateAllViews();
+  });
+
+  exportExcelBtn.addEventListener('click', function () {
+    const events = applyFilters();
+    if (!events.length) {
+      alert('当前筛选条件下无可导出的事件。');
+      return;
+    }
+    const rows = events.map(ev => ({
+      '公告日': ev.announceDate || '',
+      '公司简称': ev.companyName || '',
+      '公司简介': ev.companyDesc || '',
+      '省份': ev.province || '',
+      '一级赛道': ev.sectorMain || '',
+      '事件类型(分类)': ev.eventTypeNorm || '',
+      '事件类型(原始)': ev.eventType || '',
+      '轮次': ev.round || '',
+      '金额(本币)': ev.amountLocal || '',
+      '币种': ev.currency || '',
+      '主投机构': ev.mainInvestors || '',
+      '来源名称': ev.sourceName || '',
+      '来源链接': ev.sourceUrl || ''
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, '导出');
+    XLSX.writeFile(wb, 'med_fin_export.xlsx');
+  });
+
+  tableToggleEl.addEventListener('click', function () {
+    tableExpanded = !tableExpanded;
+    if (tableExpanded) {
+      tableWrapperEl.classList.add('expanded');
+      tableToggleIconEl.textContent = '收起 ▲';
+    } else {
+      tableWrapperEl.classList.remove('expanded');
+      tableToggleIconEl.textContent = '展开 ▼';
+    }
+  });
+</script>
+</body>
+</html>
